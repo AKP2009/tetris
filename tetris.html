@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetris</title>
+    <link rel="stylesheet" href="tetris.css">
+</head>
+<body>
+    <h1 class="desktop-only">Tetris</h1>
+
+    <div class="game-area-wrapper" id="game-area-wrapper">
+        <div class="board" id="board"></div>
+
+        <div class="next-piece-container" id="next-piece-container">
+            <div class="next-piece" id="next-piece"></div>
+        </div>
+
+        <div class="stats" id="stats-panel">
+            <p>Score: <span id="score">0</span></p>
+            <p>Lines: <span id="lines">0</span></p>
+            <p>Level: <span id="level">1</span></p>
+        </div>
+
+         <div class="game-over" id="game-over">
+            <h2>Game Over!</h2>
+            <p>Your Score: <span id="final-score">0</span></p>
+            <button id="restart-button">Play Again</button>
+        </div>
+    </div>
+
+    <button id="start-button" class="start-button-initial">Start Game</button>
+
+    <div class="controls desktop-only">
+        <h3>Controls</h3>
+        <div class="compact-controls">
+            <p><span class="key">←</span><span class="key">→</span> Move</p>
+            <p><span class="key">↑</span> Rotate</p>
+            <p><span class="key">↓</span> Soft Drop</p>
+            <p><span class="key">Space</span> Drop</p>
+            <p><span class="key">P</span> Pause</p>
+        </div>
+    </div>
+
+    <script src="tetris.js"></script>
+</body>
+</html>
