@@ -17,19 +17,24 @@
             <div class="name-entry">
                 <label for="player-name-input">Enter Your Name:</label>
                 <input type="text" id="player-name-input" placeholder="Player Name" maxlength="15">
-                <p id="name-error" class="error-message"></p> </div>
+                <p id="name-error" class="error-message"></p>
+            </div>
             <button id="start-game-button" class="btn">Start Game</button>
             <button id="view-leaderboard-button" class="btn btn-secondary">View Leaderboard</button>
         </div>
     </div>
 
     <div id="leaderboard-screen" class="screen hidden">
-         <div class="screen-content">
-            <h2>High Scores</h2>
+        <div class="screen-content">
+            <h2 id="leaderboard-title">High Scores</h2>
+            <p id="leaderboard-message" class="hidden" style="margin-top: 10px; margin-bottom:15px; font-size: 0.9em;">It's alright buddy, try again!</p>
             <ol id="high-score-list">
                 <li>Loading...</li>
             </ol>
-            <button id="back-to-menu-button" class="btn btn-secondary">Back to Menu</button>
+            <div id="leaderboard-action-buttons" style="margin-top: 15px;">
+                <button id="leaderboard-try-again-button" class="btn">Try Again</button>
+                <button id="leaderboard-reset-scores-button" class="btn btn-danger" style="margin-left: 5px; margin-right: 5px;">Reset Scores</button> <button id="leaderboard-main-menu-button" class="btn btn-secondary">Main Menu</button>
+            </div>
         </div>
     </div>
 
@@ -49,12 +54,12 @@
                 <p>Level: <span id="level">1</span></p>
             </div>
 
-            <div class="game-over" id="game-over">
+            <div class="game-over" id="game-over-original-display" style="display:none;">
                 <h2>Game Over!</h2>
                 <p>Player: <span id="game-over-player"></span></p>
                 <p>Your Score: <span id="final-score">0</span></p>
                 <button id="restart-button" class="btn">Play Again</button>
-                 <button id="game-over-menu-button" class="btn btn-secondary">Main Menu</button>
+                <button id="game-over-menu-button" class="btn btn-secondary">Main Menu</button>
             </div>
         </div>
 
@@ -68,6 +73,7 @@
                 <p><span class="key">P</span> Pause</p>
             </div>
         </div>
-    </div> <script src="tetris.js"></script>
+    </div>
+    <script src="tetris.js"></script>
 </body>
 </html>

@@ -9,6 +9,8 @@
   --btn-hover-color: #0a6dd9;
   --btn-secondary-color: #6c757d;
   --btn-secondary-hover-color: #5a6268;
+  --btn-danger-color: #dc3545; /* For Reset Scores button */
+  --btn-danger-hover-color: #c82333; /* For Reset Scores button hover */
   --error-color: #dc3545; /* Red for errors */
   --font-main: 'Press Start 2P', cursive; /* Pixel font */
   --board-border-width: 2px;
@@ -19,6 +21,11 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* General utility class for hiding elements */
+.hidden {
+    display: none;
 }
 
 /* Body Styling - Full Screen Black Background */
@@ -56,7 +63,7 @@ body {
   transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out; /* Smooth transition */
 }
 
-.screen.hidden {
+.screen.hidden { /* This is for the whole screen containers, not the general utility .hidden class */
   opacity: 0;
   visibility: hidden;
   pointer-events: none; /* Prevent interaction when hidden */
@@ -125,7 +132,7 @@ body {
   list-style: none; /* Remove default bullets */
   padding: 0;
   margin: 0 auto 20px auto; /* Center list */
-  max-height: 250px; /* Limit height and allow scrolling */
+  max-height: 200px; /* Adjusted max height slightly */
   overflow-y: auto;
   max-width: 300px;
   text-align: left; /* Align text left within list */
@@ -172,6 +179,14 @@ body {
   background-color: var(--btn-secondary-hover-color);
 }
 
+.btn-danger { /* For Reset Scores button */
+  background-color: var(--btn-danger-color);
+}
+.btn-danger:hover {
+  background-color: var(--btn-danger-hover-color);
+}
+
+
 /* Game Area Styling */
 #game-area {
   display: flex;
@@ -179,7 +194,7 @@ body {
   align-items: center;
   width: 100%;
 }
-#game-area.hidden {
+#game-area.hidden { /* This is for the game area screen itself */
   display: none;
 }
 
@@ -230,7 +245,7 @@ body {
 .next-piece-container {
   position: absolute;
   top: 10px;
-  right: 10px;
+  right: 10px; /* Adjusted for potential scrollbar if board is too wide */
   width: 80px;
   height: 80px;
   background-color: var(--panel-bg);
@@ -253,7 +268,7 @@ body {
 .stats {
   position: absolute;
   top: 10px;
-  left: 10px;
+  left: 10px; /* Adjusted for potential scrollbar */
   width: auto;
   padding: 8px 12px;
   background-color: var(--panel-bg);
@@ -269,7 +284,7 @@ body {
   white-space: nowrap;
 }
 
-/* Game Over Screen */
+/* Original Game Over Screen (inside game-area, now mostly superseded) */
 .game-over {
   position: absolute;
   top: 50%;
@@ -280,8 +295,8 @@ body {
   padding: 25px;
   text-align: center;
   border-radius: 10px;
-  z-index: 10; /* Highest */
-  display: none; /* Hidden by default */
+  z-index: 10; 
+  /* display: none; by default in JS if used */
   width: 85%;
   max-width: 300px;
   border: 2px solid var(--highlight-color);

@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tetrominoes = {
         shapes: [ /* I */ [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], /* J */ [[1,0,0],[1,1,1],[0,0,0]], /* L */ [[0,0,1],[1,1,1],[0,0,0]], /* O */ [[1,1],[1,1]], /* S */ [[0,1,1],[1,1,0],[0,0,0]], /* T */ [[0,1,0],[1,1,1],[0,0,0]], /* Z */ [[1,1,0],[0,1,1],[0,0,0]] ],
         colors: ["#00f0f0", "#0000f0", "#f0a000", "#f0f000", "#00f000", "#a000f0", "#f00000"],
-        images: ['image1.png','image2.png','image3.png','image4.png','image5.png','image6.png','image7.png'] // Ensure these images exist
+        images: ['image1.png','image2.png','image3.png','image4.png','image5.png','image6.png','image7.png']
     };
 
     // --- Game State ---
@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPiece: null, nextPiece: null,
         currentX: 0, currentY: 0, blockSize: 20,
         interval: null, isPaused: false, isGameOver: false, gameStarted: false,
-        currentPlayerName: ''
+        currentPlayerName: '',
+        pieceBag: []
     };
 
     // --- DOM Elements ---
@@ -36,8 +37,16 @@ document.addEventListener('DOMContentLoaded', () => {
         nameError: document.getElementById('name-error'),
         startGameButton: document.getElementById('start-game-button'),
         viewLeaderboardButton: document.getElementById('view-leaderboard-button'),
+        
         highScoreList: document.getElementById('high-score-list'),
-        backToMenuButton: document.getElementById('back-to-menu-button'),
+        
+        leaderboardTitle: document.getElementById('leaderboard-title'),
+        leaderboardMessage: document.getElementById('leaderboard-message'),
+        leaderboardActionButtons: document.getElementById('leaderboard-action-buttons'),
+        leaderboardTryAgainButton: document.getElementById('leaderboard-try-again-button'),
+        leaderboardResetScoresButton: document.getElementById('leaderboard-reset-scores-button'), // New Element
+        leaderboardMainMenuButton: document.getElementById('leaderboard-main-menu-button'),
+
         gameAreaWrapper: document.getElementById('game-area-wrapper'),
         board: document.getElementById('board'),
         nextPieceContainer: document.getElementById('next-piece-container'),
@@ -46,11 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
         score: document.getElementById('score'),
         lines: document.getElementById('lines'),
         level: document.getElementById('level'),
-        gameOver: document.getElementById('game-over'),
+        
+        gameOverOriginalDisplay: document.getElementById('game-over-original-display'),
         gameOverPlayer: document.getElementById('game-over-player'),
-        finalScore: document.getElementById('final-score'),
-        restartButton: document.getElementById('restart-button'),
-        gameOverMenuButton: document.getElementById('game-over-menu-button')
+        finalScore: document.getElementById('final-score')
     };
 
     // --- Touch State ---
@@ -77,15 +85,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const sortedScores = scores
-            .sort((a, b) => b.score - a.score) // Sort descending by score
+            .sort((a, b) => b.score - a.score)
             .slice(0, MAX_HIGH_SCORES);
         localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify(sortedScores));
-        // console.log("High scores saved:", sortedScores); // Optional log
     }
 
     function addNewHighScore(newEntry) {
         if (!newEntry || typeof newEntry.name !== 'string' || typeof newEntry.score !== 'number' || !Number.isFinite(newEntry.score)) {
-            console.warn("Attempted to add invalid high score entry:", newEntry);
+            // console.warn("Attempted to add invalid high score entry:", newEntry);
             return;
         }
         const scores = getHighScores();
@@ -104,8 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
             scores.forEach((entry, index) => {
                 const listItem = document.createElement('li');
                 const name = entry.name || 'Anonymous';
-                const score = (typeof entry.score === 'number') ? entry.score : '?';
-                listItem.textContent = `#${index + 1}: ${name} - ${score}`;
+                const scoreVal = (typeof entry.score === 'number') ? entry.score : '?';
+                listItem.textContent = `#${index + 1}: ${name} - ${scoreVal}`;
                 elements.highScoreList.appendChild(listItem);
             });
         }
@@ -129,15 +136,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Game Logic Functions ---
 
+    function fillAndShuffleBag() {
+        game.pieceBag = [];
+        for (let i = 0; i < tetrominoes.shapes.length; i++) {
+            game.pieceBag.push(i);
+        }
+        for (let i = game.pieceBag.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [game.pieceBag[i], game.pieceBag[j]] = [game.pieceBag[j], game.pieceBag[i]];
+        }
+    }
+
     function createPiece() {
+        if (game.pieceBag.length === 0) {
+            fillAndShuffleBag();
+        }
+        const index = game.pieceBag.pop(); 
+
         if (!tetrominoes || !tetrominoes.shapes || !Array.isArray(tetrominoes.shapes) || tetrominoes.shapes.length === 0) { console.error("CreatePiece Fail: Shapes"); return null; }
         if (!tetrominoes.images || !Array.isArray(tetrominoes.images) || !tetrominoes.colors || !Array.isArray(tetrominoes.colors)) { console.error("CreatePiece Fail: Images/Colors"); return null; }
         if (tetrominoes.shapes.length === 0 || tetrominoes.images.length !== tetrominoes.shapes.length || tetrominoes.colors.length !== tetrominoes.shapes.length) { console.error("CreatePiece Fail: Length Mismatch"); return null; }
-        const index = Math.floor(Math.random() * tetrominoes.shapes.length);
-        if(index < 0 || index >= tetrominoes.shapes.length) { console.error(`CreatePiece Fail: Invalid index ${index}`); return null; }
+        if(index === undefined || index < 0 || index >= tetrominoes.shapes.length) { console.error(`CreatePiece Fail: Invalid index ${index} from bag`); return null; } 
         if (!tetrominoes.shapes[index] || !Array.isArray(tetrominoes.shapes[index])) { console.error(`CreatePiece Fail: No matrix at index ${index}`); return null; }
         if (typeof tetrominoes.images[index] === 'undefined' || typeof tetrominoes.colors[index] === 'undefined') { console.error(`CreatePiece Fail: No image/color at index ${index}`); return null; }
-        return { shape: index, matrix: tetrominoes.shapes[index], image: tetrominoes.images[index], color: tetrominoes.colors[index] };
+        
+        const matrixCopy = JSON.parse(JSON.stringify(tetrominoes.shapes[index]));
+        return { shape: index, matrix: matrixCopy, image: tetrominoes.images[index], color: tetrominoes.colors[index] };
     }
 
     function initBoard() {
@@ -147,7 +171,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getSpeed() {
-        return Math.max(100, 1000 - (Math.min(game.level, 10) - 1) * 90);
+        let speed;
+        if (game.level <= 10) {
+            speed = 1000 - (game.level - 1) * 80;
+        } else if (game.level <= 15) { 
+            speed = 280 - (game.level - 10) * 30;
+        } else if (game.level <= 20) { 
+            speed = 130 - (game.level - 15) * 10;
+        } else { 
+            speed = 80 - (game.level - 20) * 5;
+        }
+        return Math.max(50, speed); 
     }
 
     function resetPiecePosition() {
@@ -155,14 +189,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const pieceWidth = game.currentPiece.matrix[0]?.length || 0;
         game.currentX = Math.floor(config.board.width / 2) - Math.floor(pieceWidth / 2);
         game.currentY = 0;
+        let topRowOffset = 0;
         for (let y = 0; y < game.currentPiece.matrix.length; y++) {
-            if (game.currentPiece.matrix[y] && game.currentPiece.matrix[y].some(cell => cell !== 0)) break;
-            game.currentY--;
+            if (game.currentPiece.matrix[y].some(cell => cell !== 0)) {
+                break;
+            }
+            topRowOffset++;
         }
+        game.currentY -= topRowOffset;
     }
 
     function isCollision(matrix, x, y) {
-        if (!matrix || !config || !config.board || !game.board) { console.warn("Collision check skipped: Missing data."); return true; }
+        if (!matrix || !config || !config.board || !game.board) { /* console.warn("Collision check skipped: Missing data."); */ return true; }
         for (let row = 0; row < matrix.length; row++) {
             if (!matrix[row]) continue;
             for (let col = 0; col < matrix[row].length; col++) {
@@ -193,26 +231,39 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!game.currentPiece || !game.nextPiece) { console.error("moveDown ERROR: Failed create new/next piece. Ending."); endGame(); return; }
             if (!game.currentPiece.matrix) { console.error("moveDown ERROR: New piece has no matrix. Ending."); endGame(); return; }
             resetPiecePosition();
-            if (isCollision(game.currentPiece.matrix, game.currentX, game.currentY)) { console.log("Game Over - Collision on spawn."); endGame(); }
+            if (isCollision(game.currentPiece.matrix, game.currentX, game.currentY)) { endGame(); }
             else { draw(); }
         }
     }
 
     function rotatePiece() {
         if (game.isPaused || game.isGameOver || !game.currentPiece || !game.currentPiece.matrix) return false;
-        const matrix = game.currentPiece.matrix; const N = matrix.length;
-        const rotated = Array(N).fill().map(() => Array(N).fill(0));
+        const originalMatrix = JSON.parse(JSON.stringify(game.currentPiece.matrix));
+        const N = originalMatrix.length;
+        const rotated = Array(N).fill(null).map(() => Array(N).fill(0));
         for (let y = 0; y < N; y++) {
-            if (!matrix[y]) continue;
-            for (let x = 0; x < N; x++) { if (typeof matrix[y][x] !== 'undefined') rotated[x][N - 1 - y] = matrix[y][x]; }
+            if (!originalMatrix[y]) continue;
+            for (let x = 0; x < N; x++) {
+                if (typeof originalMatrix[y][x] !== 'undefined') {
+                     rotated[x][N - 1 - y] = originalMatrix[y][x];
+                }
+            }
         }
-        const originalX = game.currentX; const originalY = game.currentY;
-        const kickOffsets = [ [0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0], [0, -2] ];
+        const originalX = game.currentX;
+        const originalY = game.currentY;
+        const kickOffsets = [ [0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0], [0, -2], [-1,-1], [1,-1], [-1,1], [1,1] ];
         for (const [kickX, kickY] of kickOffsets) {
-            const newX = originalX + kickX; const newY = originalY + kickY;
-            if (!isCollision(rotated, newX, newY)) { game.currentPiece.matrix = rotated; game.currentX = newX; game.currentY = newY; draw(); return true; }
+            const newX = originalX + kickX;
+            const newY = originalY + kickY;
+            if (!isCollision(rotated, newX, newY)) {
+                game.currentPiece.matrix = rotated; 
+                game.currentX = newX;
+                game.currentY = newY;
+                draw();
+                return true;
+            }
         }
-        return false;
+        return false; 
     }
 
     function hardDrop() {
@@ -262,9 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
         game.score += (linePoints[linesCleared] || 0) * game.level; game.lines += linesCleared;
         const newLevel = Math.floor(game.lines / 10) + 1;
         if (newLevel > game.level) {
-            game.level = newLevel; // console.log("Level Up!", game.level); // Optional log
+            game.level = newLevel;
             if (game.interval) clearInterval(game.interval);
-            // Only restart interval if game is not paused
             if (!game.isPaused) {
                 game.interval = setInterval(moveDown, getSpeed());
             }
@@ -279,19 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
         game.isPaused = !game.isPaused;
         if (game.isPaused) {
             clearInterval(game.interval); game.interval = null;
-            if (elements.board) elements.board.style.opacity = '0.5'; console.log("Game Paused");
+            if (elements.board) elements.board.style.opacity = '0.5';
         } else {
             if (elements.board) elements.board.style.opacity = '1';
-            // Resume game loop only if there's a current piece and not game over
             if(game.currentPiece && !game.isGameOver) {
                  game.interval = setInterval(moveDown, getSpeed());
             }
-            console.log("Game Resumed"); draw();
+            draw();
         }
     }
 
     function endGame() {
-        console.log(`Game Over for ${game.currentPlayerName}! Final Score: ${game.score}`);
         game.isGameOver = true;
         game.gameStarted = false;
 
@@ -299,10 +347,16 @@ document.addEventListener('DOMContentLoaded', () => {
         game.interval = null;
 
         addNewHighScore({ name: game.currentPlayerName || "Anonymous", score: game.score });
+        displayHighScores(); 
 
-        if (elements.gameOverPlayer) elements.gameOverPlayer.textContent = game.currentPlayerName || "Player";
-        if (elements.finalScore) elements.finalScore.textContent = game.score;
-        if (elements.gameOver) elements.gameOver.style.display = 'block'; // Show game over screen
+        if (elements.leaderboardTitle) elements.leaderboardTitle.textContent = "Game Over!";
+        if (elements.leaderboardMessage) elements.leaderboardMessage.classList.remove('hidden'); // Show message
+        if (elements.leaderboardActionButtons) elements.leaderboardActionButtons.classList.remove('hidden');
+        if (elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'inline-block';
+        if (elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none'; // Hide Reset button on game over
+        if (elements.leaderboardMainMenuButton) elements.leaderboardMainMenuButton.style.display = 'inline-block';
+        
+        showScreen(elements.leaderboardScreen);
 
         if (elements.board) {
              elements.board.removeEventListener('touchstart', handleTouchStart);
@@ -312,7 +366,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.removeEventListener('keydown', handleKeyPress);
     }
 
-    // --- Rendering Functions ---
+    // --- Rendering Functions (Draw, CreateBlock, CreateGrid, DrawNextPiece) ---
+    // ... (These functions remain largely the same as your last provided version) ...
+    // ... (No changes needed in these for the current request) ...
     function draw() {
         if (game.isPaused || !game.gameStarted) return;
         if (!config || !config.board) { console.error("Draw Fail: Config"); return; }
@@ -326,20 +382,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     const blockValue = game.board[y][x] - 1;
                     if (blockValue >= 0 && blockValue < tetrominoes.images.length && blockValue < tetrominoes.colors.length) {
                         createBlock(elements.board, x * game.blockSize, y * game.blockSize, tetrominoes.images[blockValue], tetrominoes.colors[blockValue]);
-                    } else { console.warn(`Invalid blockValue ${blockValue} at board[${y}][${x}]`); }
+                    }
                 }
             }
         }
         if (game.currentPiece && game.currentPiece.matrix) {
             const matrix = game.currentPiece.matrix; const image = game.currentPiece.image; const color = game.currentPiece.color;
-            if (typeof image === 'undefined' || typeof color === 'undefined') { console.warn("Current piece missing image/color."); }
+            if (typeof image === 'undefined' || typeof color === 'undefined') { /* console.warn for missing image/color */ }
             for (let y = 0; y < matrix.length; y++) {
                 if (!matrix[y]) continue;
                 for (let x = 0; x < matrix[y].length; x++) {
                     if (matrix[y][x]) {
                         if (typeof image !== 'undefined' && typeof color !== 'undefined') {
                             createBlock(elements.board, (game.currentX + x) * game.blockSize, (game.currentY + y) * game.blockSize, image, color);
-                        } else { console.warn(`Rendering current piece block at [${y}][${x}] without valid image/color.`); }
+                        }
                     }
                 }
             }
@@ -361,10 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createGrid() {
         if (!elements.board || !config || !config.board || game.blockSize <= 0) return;
-        // Clear previous grid if any to prevent duplicates on resize
         const existingGridCells = elements.board.querySelectorAll('.grid-cell');
         existingGridCells.forEach(cell => cell.remove());
-
         for (let y = 0; y < config.board.height; y++) {
             for (let x = 0; x < config.board.width; x++) {
                 const cell = document.createElement('div'); cell.className = 'grid-cell';
@@ -376,29 +430,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawNextPiece() {
-        if (!game.nextPiece || !game.nextPiece.matrix || !elements.nextPiece) { console.warn("DrawNext Fail: Missing data/element."); if(elements.nextPiece) elements.nextPiece.innerHTML = ''; return; }
+        if (!game.nextPiece || !game.nextPiece.matrix || !elements.nextPiece) { if(elements.nextPiece) elements.nextPiece.innerHTML = ''; return; }
         const matrix = game.nextPiece.matrix; const image = game.nextPiece.image; const color = game.nextPiece.color;
-        if (typeof image === 'undefined' || typeof color === 'undefined') { console.warn("Next piece missing image/color."); }
+        if (typeof image === 'undefined' || typeof color === 'undefined') { /* console.warn for missing image/color */ }
         const containerWidth = elements.nextPiece.clientWidth; const containerHeight = elements.nextPiece.clientHeight;
         let matrixWidth = 0; let matrixHeight = 0;
-        for (let y = 0; y < matrix.length; y++) { let rhb = false; let cw = 0; if (!matrix[y]) continue; for(let x=0; x<matrix[y].length; x++) { if (matrix[y][x]) { rhb = true; cw = x + 1; } } if(rhb) matrixHeight = y + 1; if (cw > matrixWidth) matrixWidth = cw; }
-        if (matrixWidth === 0 && matrix.length > 0 && matrix[0]) matrixWidth = matrix[0].length; if (matrixHeight === 0 && matrix.length > 0) matrixHeight = matrix.length; if (matrixWidth === 0 || matrixHeight === 0) { console.warn("DrawNext Fail: Zero dimensions."); return; }
+        for (let y = 0; y < matrix.length; y++) { let rhb = false; let cw = 0; if (!matrix[y]) continue; for(let xVal=0; xVal<matrix[y].length; xVal++) { if (matrix[y][xVal]) { rhb = true; cw = xVal + 1; } } if(rhb) matrixHeight = y + 1; if (cw > matrixWidth) matrixWidth = cw; }
+        if (matrixWidth === 0 && matrix.length > 0 && matrix[0]) matrixWidth = matrix[0].length; if (matrixHeight === 0 && matrix.length > 0) matrixHeight = matrix.length; if (matrixWidth === 0 || matrixHeight === 0) { return; }
         const padding = 0; const cellSize = Math.max(1, Math.floor(Math.min( containerWidth / (matrixWidth + padding), containerHeight / (matrixHeight + padding) )));
         const totalWidth = matrixWidth * cellSize; const totalHeight = matrixHeight * cellSize;
         const offsetX = (containerWidth - totalWidth) / 2; const offsetY = (containerHeight - totalHeight) / 2;
-        for (let y = 0; y < matrix.length; y++) { if (!matrix[y]) continue; for (let x = 0; x < matrix[y].length; x++) { if (matrix[y][x]) { if (typeof image !== 'undefined' && typeof color !== 'undefined') { const block = createBlock(elements.nextPiece, offsetX + (x * cellSize), offsetY + (y * cellSize), image, color ); if (block) { block.style.width = cellSize + 'px'; block.style.height = cellSize + 'px'; } } else { console.warn(`Skipping render next piece block [${y}][${x}]`); } } } }
+        for (let y = 0; y < matrix.length; y++) { if (!matrix[y]) continue; for (let xVal = 0; xVal < matrix[y].length; xVal++) { if (matrix[y][xVal]) { if (typeof image !== 'undefined' && typeof color !== 'undefined') { const block = createBlock(elements.nextPiece, offsetX + (xVal * cellSize), offsetY + (y * cellSize), image, color ); if (block) { block.style.width = cellSize + 'px'; block.style.height = cellSize + 'px'; } } } } }
     }
 
+
     // --- Event Handlers ---
+    // ... (handleResize, handleKeyPress, handleTouchStart, handleTouchMove, handleTouchEnd remain the same) ...
+    // ... (No changes needed in these for the current request) ...
     function handleResize() {
-        // console.log("--- handleResize called ---"); // Less verbose logging
         const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight;
         let availableWidth = viewportWidth * 0.95; let availableHeight = viewportHeight * 0.90;
         let blockSizeW = 0; let blockSizeH = 0;
         if (config && config.board && config.board.width > 0 && config.board.height > 0) { blockSizeW = Math.floor(availableWidth / config.board.width); blockSizeH = Math.floor(availableHeight / config.board.height); }
         else { console.error("Resize Fail: Config invalid!"); game.blockSize = 4; }
         const validBlockSizeW = Number.isFinite(blockSizeW) ? blockSizeW : 0; const validBlockSizeH = Number.isFinite(blockSizeH) ? blockSizeH : 0;
-        game.blockSize = Math.max(4, Math.min(validBlockSizeW, validBlockSizeH));
+        game.blockSize = Math.max(4, Math.min(validBlockSizeW, validBlockSizeH, 30)); 
         let boardWidth = 0; let boardHeight = 0;
         if (config && config.board) { boardWidth = game.blockSize * config.board.width; boardHeight = game.blockSize * config.board.height; }
         if (boardWidth > 0 && boardHeight > 0 && elements.board && elements.gameAreaWrapper) {
@@ -410,7 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
              if (elements.board && elements.board.style.display !== 'none') { elements.board.innerHTML = ''; if (boardWidth > 0 && boardHeight > 0){ createGrid(); } }
         }
         if (game && elements.nextPiece) { if (game.nextPiece) { elements.nextPiece.innerHTML = ''; drawNextPiece(); } else { elements.nextPiece.innerHTML = ''; } }
-        // console.log("--- handleResize finished ---"); // Less verbose logging
     }
 
     function handleKeyPress(event) {
@@ -433,16 +488,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (game.isGameOver || game.isPaused || !game.gameStarted || !touch.startTime || e.touches.length !== 1) return; e.preventDefault();
         const t = e.touches[0]; const deltaXTotal = t.clientX - touch.startX; const deltaYTotal = t.clientY - touch.startY; const deltaXInstant = t.clientX - touch.currentX;
         if (!config || !config.touch) return; const moveThresholdPixels = game.blockSize * config.touch.moveThresholdRatio;
-        if (Math.abs(deltaXInstant) > moveThresholdPixels) { const direction = deltaXInstant > 0 ? 1 : -1; if (movePiece(direction)) { touch.currentX = t.clientX; touch.movedHorizontally = true; touch.isDragging = true; } }
-        if (!touch.isSwipedDown && deltaYTotal > config.touch.swipeDownThreshold && Math.abs(deltaYTotal) > Math.abs(deltaXTotal) * 1.5) { /* console.log("Hard drop (swipe)"); */ touch.isSwipedDown = true; hardDrop(); touch.startTime = 0; }
+        if (Math.abs(deltaXInstant) > moveThresholdPixels) { 
+            const direction = deltaXInstant > 0 ? 1 : -1; 
+            if (movePiece(direction)) { 
+                touch.currentX = t.clientX;
+                touch.movedHorizontally = true; 
+                touch.isDragging = true; 
+                touch.startX = t.clientX; 
+                touch.startY = t.clientY; 
+            } 
+        }
+        if (!touch.isSwipedDown && deltaYTotal > config.touch.swipeDownThreshold && Math.abs(deltaYTotal) > Math.abs(deltaXTotal) * 1.5) { 
+            touch.isSwipedDown = true; hardDrop(); touch.startTime = 0; 
+        }
     }
 
     function handleTouchEnd(e) {
         if (game.isGameOver || game.isPaused || !game.gameStarted || !touch.startTime) return;
         const touchDuration = Date.now() - touch.startTime; const endX = e.changedTouches[0].clientX; const endY = e.changedTouches[0].clientY;
         const totalMoveDistance = Math.sqrt(Math.pow(endX - touch.startX, 2) + Math.pow(endY - touch.startY, 2));
+        
         if (!config || !config.touch) return;
-        if (!touch.isSwipedDown && !touch.movedHorizontally && touchDuration < config.touch.tapTimeout && totalMoveDistance < config.touch.dragThreshold * 1.5) { /* console.log("Tap (rotate)"); */ rotatePiece(); }
+        if (!touch.isSwipedDown && !touch.movedHorizontally && touchDuration < config.touch.tapTimeout && totalMoveDistance < config.touch.dragThreshold * 1.5) { 
+            rotatePiece(); 
+        }
         touch.startTime = 0; touch.isDragging = false; touch.isSwipedDown = false; touch.movedHorizontally = false;
     }
 
@@ -455,95 +524,91 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupUIEventListeners() {
-        // Start Screen Buttons
         if (elements.startGameButton) {
             elements.startGameButton.addEventListener('click', () => {
                 const playerName = elements.playerNameInput.value.trim();
                 if (playerName) {
                     game.currentPlayerName = playerName;
-                    elements.nameError.textContent = ''; // Clear error
-                    showScreen(elements.gameArea); // Show game area
-                    startGame(); // <<<< THIS IS THE FUNCTION CALL
+                    elements.nameError.textContent = '';
+                    showScreen(elements.gameArea);
+                    startGame();
                 } else {
-                    elements.nameError.textContent = 'Please enter your name!'; // Show error
+                    elements.nameError.textContent = 'Please enter your name!';
                 }
             });
         }
         if (elements.viewLeaderboardButton) {
             elements.viewLeaderboardButton.addEventListener('click', () => {
-                displayHighScores(); // Populate the list
-                showScreen(elements.leaderboardScreen); // Show leaderboard
+                if(elements.leaderboardTitle) elements.leaderboardTitle.textContent = "High Scores";
+                if(elements.leaderboardMessage) elements.leaderboardMessage.classList.add('hidden'); // Ensure message is hidden
+                if(elements.leaderboardActionButtons) elements.leaderboardActionButtons.classList.remove('hidden');
+                if(elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'none';
+                if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'inline-block'; // Show Reset button
+                if(elements.leaderboardMainMenuButton) elements.leaderboardMainMenuButton.style.display = 'inline-block';
+                
+                displayHighScores();
+                showScreen(elements.leaderboardScreen);
             });
         }
-
-        // Leaderboard Screen Button
-        if (elements.backToMenuButton) {
-            elements.backToMenuButton.addEventListener('click', () => {
-                showScreen(elements.startScreen); // Go back to start
-            });
-        }
-
-        // Game Over Screen Buttons
-        if (elements.restartButton) {
-            elements.restartButton.addEventListener('click', () => {
-                if (game.currentPlayerName) {
-                     if (elements.gameOver) elements.gameOver.style.display = 'none';
+       
+        if (elements.leaderboardTryAgainButton) {
+            elements.leaderboardTryAgainButton.addEventListener('click', () => {
+                if (game.currentPlayerName) { 
                      showScreen(elements.gameArea);
-                     startGame(); // <<<< THIS IS THE FUNCTION CALL
-                } else {
+                     startGame();
+                } else { 
                      showScreen(elements.startScreen);
                 }
             });
         }
-         if (elements.gameOverMenuButton) {
-            elements.gameOverMenuButton.addEventListener('click', () => {
-                 if (elements.gameOver) elements.gameOver.style.display = 'none';
-                 showScreen(elements.startScreen);
+        if (elements.leaderboardMainMenuButton) {
+            elements.leaderboardMainMenuButton.addEventListener('click', () => {
+                showScreen(elements.startScreen);
             });
         }
-
-        // Global listener (resize)
+        if (elements.leaderboardResetScoresButton) {
+            elements.leaderboardResetScoresButton.addEventListener('click', () => {
+                if (confirm("Are you sure you want to reset all high scores? This cannot be undone.")) {
+                    saveHighScores([]); // Clears scores by saving an empty array
+                    displayHighScores(); // Refresh the displayed list
+                }
+            });
+        }
         window.addEventListener('resize', handleResize);
     }
 
-    // --- THIS IS THE startGame FUNCTION DEFINITION ---
-    // It MUST be defined before setupUIEventListeners is called (which happens in init)
     function startGame() {
-        console.log("startGame function STARTING..."); // Log start
-
-        // Reset game state variables
         game.score = 0;
         game.lines = 0;
         game.level = 1;
         game.isGameOver = false;
         game.isPaused = false;
-        game.currentPiece = null; // Reset pieces
+        game.currentPiece = null; 
         game.nextPiece = null;
-        game.gameStarted = true; // Mark game as started
+        game.gameStarted = true; 
+        game.pieceBag = []; 
 
-        // Clear previous game loop interval if it exists
         if (game.interval) {
             clearInterval(game.interval);
             game.interval = null;
         }
-
-        // Initialize the board array and clear visual board
         initBoard();
-
-        // Update UI display for score, lines, level
         if (elements.score) elements.score.textContent = game.score;
         if (elements.lines) elements.lines.textContent = game.lines;
         if (elements.level) elements.level.textContent = game.level;
+        
+        // Ensure leaderboard specific elements are in their default non-game-over state
+        // This is mostly handled by the `viewLeaderboardButton` handler if user navigates there,
+        // but good to ensure clean state if possible.
+        if(elements.leaderboardMessage) elements.leaderboardMessage.classList.add('hidden');
+        if(elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'none';
+        if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none'; // Hide reset button when game starts/restarts
+        if(elements.leaderboardTitle) elements.leaderboardTitle.textContent = "High Scores";
 
-        // Hide game over screen and ensure board is fully visible
-        if (elements.gameOver) elements.gameOver.style.display = 'none';
-        if (elements.board) elements.board.style.opacity = '1';
-
-        // --- Create initial pieces ---
+        fillAndShuffleBag(); 
         game.currentPiece = createPiece();
         game.nextPiece = createPiece();
 
-        // --- Check: Ensure pieces were created successfully ---
         if (!game.currentPiece || !game.nextPiece) {
             console.error("startGame ERROR: Failed to create initial pieces. Check createPiece logs. Aborting start.");
             endGame(); return;
@@ -552,36 +617,20 @@ document.addEventListener('DOMContentLoaded', () => {
              console.error("startGame ERROR: game.currentPiece is missing a valid 'matrix' property! Aborting start.");
              endGame(); return;
         }
-        // --- End Check ---
-
-        handleResize(); // Calculate initial sizes based on current viewport
-        resetPiecePosition(); // Set piece position *after* sizing and piece creation
-
+        handleResize(); 
+        resetPiecePosition(); 
         if (isCollision(game.currentPiece.matrix, game.currentX, game.currentY)) {
-            console.warn("Immediate collision on start. Ending game.");
             endGame(); return;
         }
-
         game.interval = setInterval(moveDown, getSpeed());
         setupGameplayEventListeners();
         draw();
-
-        console.log("startGame function FINISHED."); // Log finish
     }
-    // --- END OF startGame FUNCTION DEFINITION ---
 
-
-    // Main initialization function
     function init() {
-        console.log("Initializing Tetris...");
-        // setupLegend(); // Only needed if you have the legend HTML elements
-        setupUIEventListeners(); // Setup buttons for screens
-        handleResize(); // Calculate initial sizes
-        showScreen(elements.startScreen); // Show start screen first
-        console.log("Initialization Complete. Waiting for player name.");
+        setupUIEventListeners(); 
+        handleResize(); 
+        showScreen(elements.startScreen); 
     }
-
-    // --- Start the initialization process ---
     init();
-
-}); // End of DOMContentLoaded listener
+});
