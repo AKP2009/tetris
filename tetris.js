@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
             moveThresholdRatio: 0.5,
             swipeDownThreshold: 50,
             tapTimeout: 200
+        },
+        gameplay: { // Added for new speed logic
+            baseSpeedMs: 1000, // Speed for Level 1 in milliseconds
+            speedMultiplier: 1.2, // Each level, speed becomes 1.2x faster (interval / 1.2)
+            minSpeedMs: 50,       // Minimum interval in milliseconds (fastest speed)
+            linesPerLevel: 4      // Lines to clear to advance to the next level
         }
     };
 
@@ -44,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         leaderboardMessage: document.getElementById('leaderboard-message'),
         leaderboardActionButtons: document.getElementById('leaderboard-action-buttons'),
         leaderboardTryAgainButton: document.getElementById('leaderboard-try-again-button'),
-        leaderboardResetScoresButton: document.getElementById('leaderboard-reset-scores-button'), // New Element
+        leaderboardResetScoresButton: document.getElementById('leaderboard-reset-scores-button'),
         leaderboardMainMenuButton: document.getElementById('leaderboard-main-menu-button'),
 
         gameAreaWrapper: document.getElementById('game-area-wrapper'),
@@ -92,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addNewHighScore(newEntry) {
         if (!newEntry || typeof newEntry.name !== 'string' || typeof newEntry.score !== 'number' || !Number.isFinite(newEntry.score)) {
-            // console.warn("Attempted to add invalid high score entry:", newEntry);
             return;
         }
         const scores = getHighScores();
@@ -170,18 +175,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.board) elements.board.innerHTML = '';
     }
 
+    // --- MODIFIED getSpeed FUNCTION ---
     function getSpeed() {
-        let speed;
-        if (game.level <= 10) {
-            speed = 1000 - (game.level - 1) * 80;
-        } else if (game.level <= 15) { 
-            speed = 280 - (game.level - 10) * 30;
-        } else if (game.level <= 20) { 
-            speed = 130 - (game.level - 15) * 10;
-        } else { 
-            speed = 80 - (game.level - 20) * 5;
-        }
-        return Math.max(50, speed); 
+        // Speed for Level 1 is baseSpeedMs.
+        // For each subsequent level, the interval is divided by speedMultiplier.
+        // Example: Level 1 = 1000ms
+        // Level 2 = 1000ms / 1.2 = 833.33ms
+        // Level 3 = (1000ms / 1.2) / 1.2 = 1000ms / (1.2^2) = 694.44ms
+        const speed = config.gameplay.baseSpeedMs / Math.pow(config.gameplay.speedMultiplier, game.level - 1);
+        return Math.max(config.gameplay.minSpeedMs, Math.round(speed)); // Round to nearest ms and ensure minimum speed
     }
 
     function resetPiecePosition() {
@@ -200,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function isCollision(matrix, x, y) {
-        if (!matrix || !config || !config.board || !game.board) { /* console.warn("Collision check skipped: Missing data."); */ return true; }
+        if (!matrix || !config || !config.board || !game.board) { return true; }
         for (let row = 0; row < matrix.length; row++) {
             if (!matrix[row]) continue;
             for (let col = 0; col < matrix[row].length; col++) {
@@ -245,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!originalMatrix[y]) continue;
             for (let x = 0; x < N; x++) {
                 if (typeof originalMatrix[y][x] !== 'undefined') {
-                     rotated[x][N - 1 - y] = originalMatrix[y][x];
+                    rotated[x][N - 1 - y] = originalMatrix[y][x];
                 }
             }
         }
@@ -308,14 +310,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (linesCleared > 0) { updateScore(linesCleared); }
     }
 
+    // --- MODIFIED updateScore FUNCTION ---
     function updateScore(linesCleared) {
-        const linePoints = [0, 40, 100, 300, 1200];
-        game.score += (linePoints[linesCleared] || 0) * game.level; game.lines += linesCleared;
-        const newLevel = Math.floor(game.lines / 10) + 1;
+        const linePoints = [0, 40, 100, 300, 1200]; // Points per lines cleared (1, 2, 3, 4)
+        // Give more points if more lines cleared at once and for higher levels
+        game.score += (linePoints[linesCleared] || (linesCleared > 4 ? linePoints[4] : 0)) * game.level;
+        game.lines += linesCleared;
+
+        // Level increases every `config.gameplay.linesPerLevel` lines cleared
+        const newLevel = Math.floor(game.lines / config.gameplay.linesPerLevel) + 1;
+
         if (newLevel > game.level) {
             game.level = newLevel;
             if (game.interval) clearInterval(game.interval);
-            if (!game.isPaused) {
+            if (!game.isPaused && !game.isGameOver) { // ensure game is active
                 game.interval = setInterval(moveDown, getSpeed());
             }
         }
@@ -333,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             if (elements.board) elements.board.style.opacity = '1';
             if(game.currentPiece && !game.isGameOver) {
-                 game.interval = setInterval(moveDown, getSpeed());
+                game.interval = setInterval(moveDown, getSpeed());
             }
             draw();
         }
@@ -350,25 +358,23 @@ document.addEventListener('DOMContentLoaded', () => {
         displayHighScores(); 
 
         if (elements.leaderboardTitle) elements.leaderboardTitle.textContent = "Game Over!";
-        if (elements.leaderboardMessage) elements.leaderboardMessage.classList.remove('hidden'); // Show message
+        if (elements.leaderboardMessage) elements.leaderboardMessage.classList.remove('hidden');
         if (elements.leaderboardActionButtons) elements.leaderboardActionButtons.classList.remove('hidden');
         if (elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'inline-block';
-        if (elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none'; // Hide Reset button on game over
+        if (elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none';
         if (elements.leaderboardMainMenuButton) elements.leaderboardMainMenuButton.style.display = 'inline-block';
         
         showScreen(elements.leaderboardScreen);
 
         if (elements.board) {
-             elements.board.removeEventListener('touchstart', handleTouchStart);
-             elements.board.removeEventListener('touchmove', handleTouchMove);
-             elements.board.removeEventListener('touchend', handleTouchEnd);
+            elements.board.removeEventListener('touchstart', handleTouchStart);
+            elements.board.removeEventListener('touchmove', handleTouchMove);
+            elements.board.removeEventListener('touchend', handleTouchEnd);
         }
         document.removeEventListener('keydown', handleKeyPress);
     }
 
-    // --- Rendering Functions (Draw, CreateBlock, CreateGrid, DrawNextPiece) ---
-    // ... (These functions remain largely the same as your last provided version) ...
-    // ... (No changes needed in these for the current request) ...
+    // --- Rendering Functions ---
     function draw() {
         if (game.isPaused || !game.gameStarted) return;
         if (!config || !config.board) { console.error("Draw Fail: Config"); return; }
@@ -443,10 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let y = 0; y < matrix.length; y++) { if (!matrix[y]) continue; for (let xVal = 0; xVal < matrix[y].length; xVal++) { if (matrix[y][xVal]) { if (typeof image !== 'undefined' && typeof color !== 'undefined') { const block = createBlock(elements.nextPiece, offsetX + (xVal * cellSize), offsetY + (y * cellSize), image, color ); if (block) { block.style.width = cellSize + 'px'; block.style.height = cellSize + 'px'; } } } } }
     }
 
-
     // --- Event Handlers ---
-    // ... (handleResize, handleKeyPress, handleTouchStart, handleTouchMove, handleTouchEnd remain the same) ...
-    // ... (No changes needed in these for the current request) ...
     function handleResize() {
         const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight;
         let availableWidth = viewportWidth * 0.95; let availableHeight = viewportHeight * 0.90;
@@ -463,18 +466,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { console.error("Resize Fail: Invalid dimensions or elements missing!", boardWidth, boardHeight); }
         if (game.gameStarted && !game.isPaused && !game.isGameOver) { draw(); }
         else if (!game.gameStarted && elements.gameArea?.classList.contains('hidden')) {
-             if (elements.board && elements.board.style.display !== 'none') { elements.board.innerHTML = ''; if (boardWidth > 0 && boardHeight > 0){ createGrid(); } }
+            if (elements.board && elements.board.style.display !== 'none') { elements.board.innerHTML = ''; if (boardWidth > 0 && boardHeight > 0){ createGrid(); } }
         }
         if (game && elements.nextPiece) { if (game.nextPiece) { elements.nextPiece.innerHTML = ''; drawNextPiece(); } else { elements.nextPiece.innerHTML = ''; } }
     }
 
     function handleKeyPress(event) {
         if (game.isGameOver || !game.gameStarted) return;
-        if (game.isPaused && event.keyCode !== 80) return;
+        if (game.isPaused && event.keyCode !== 80 && event.key?.toLowerCase() !== 'p') return; // Allow 'P' or 'p' for pause
         switch (event.keyCode) {
-            case 37: movePiece(-1); event.preventDefault(); break; case 39: movePiece(1); event.preventDefault(); break;
-            case 38: rotatePiece(); event.preventDefault(); break; case 40: moveDown(); event.preventDefault(); break;
-            case 32: hardDrop(); event.preventDefault(); break; case 80: togglePause(); event.preventDefault(); break;
+            case 37: movePiece(-1); event.preventDefault(); break; // Left Arrow
+            case 39: movePiece(1); event.preventDefault(); break;  // Right Arrow
+            case 38: rotatePiece(); event.preventDefault(); break; // Up Arrow
+            case 40: moveDown(); event.preventDefault(); break;    // Down Arrow
+            case 32: hardDrop(); event.preventDefault(); break;   // Space
+            case 80: togglePause(); event.preventDefault(); break; // 'P'
+        }
+         // For 'p' key if keyCode is not always reliable for letters
+        if (event.key?.toLowerCase() === 'p' && event.keyCode !== 80) {
+             togglePause(); event.preventDefault();
         }
     }
 
@@ -516,11 +526,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Initialization and Event Listener Setup ---
-
     function setupGameplayEventListeners() {
-         if (!elements.board) return;
-         elements.board.removeEventListener('touchstart', handleTouchStart); elements.board.removeEventListener('touchmove', handleTouchMove); elements.board.removeEventListener('touchend', handleTouchEnd); document.removeEventListener('keydown', handleKeyPress);
-         elements.board.addEventListener('touchstart', handleTouchStart, { passive: false }); elements.board.addEventListener('touchmove', handleTouchMove, { passive: false }); elements.board.addEventListener('touchend', handleTouchEnd, { passive: false }); document.addEventListener('keydown', handleKeyPress);
+        if (!elements.board) return;
+        elements.board.removeEventListener('touchstart', handleTouchStart); elements.board.removeEventListener('touchmove', handleTouchMove); elements.board.removeEventListener('touchend', handleTouchEnd); document.removeEventListener('keydown', handleKeyPress);
+        elements.board.addEventListener('touchstart', handleTouchStart, { passive: false }); elements.board.addEventListener('touchmove', handleTouchMove, { passive: false }); elements.board.addEventListener('touchend', handleTouchEnd, { passive: false }); document.addEventListener('keydown', handleKeyPress);
     }
 
     function setupUIEventListeners() {
@@ -540,24 +549,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.viewLeaderboardButton) {
             elements.viewLeaderboardButton.addEventListener('click', () => {
                 if(elements.leaderboardTitle) elements.leaderboardTitle.textContent = "High Scores";
-                if(elements.leaderboardMessage) elements.leaderboardMessage.classList.add('hidden'); // Ensure message is hidden
+                if(elements.leaderboardMessage) elements.leaderboardMessage.classList.add('hidden');
                 if(elements.leaderboardActionButtons) elements.leaderboardActionButtons.classList.remove('hidden');
                 if(elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'none';
-                if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'inline-block'; // Show Reset button
+                if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'inline-block';
                 if(elements.leaderboardMainMenuButton) elements.leaderboardMainMenuButton.style.display = 'inline-block';
                 
                 displayHighScores();
                 showScreen(elements.leaderboardScreen);
             });
         }
-       
+        
         if (elements.leaderboardTryAgainButton) {
             elements.leaderboardTryAgainButton.addEventListener('click', () => {
                 if (game.currentPlayerName) { 
-                     showScreen(elements.gameArea);
-                     startGame();
+                    showScreen(elements.gameArea);
+                    startGame();
                 } else { 
-                     showScreen(elements.startScreen);
+                    showScreen(elements.startScreen);
                 }
             });
         }
@@ -569,8 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.leaderboardResetScoresButton) {
             elements.leaderboardResetScoresButton.addEventListener('click', () => {
                 if (confirm("Are you sure you want to reset all high scores? This cannot be undone.")) {
-                    saveHighScores([]); // Clears scores by saving an empty array
-                    displayHighScores(); // Refresh the displayed list
+                    saveHighScores([]);
+                    displayHighScores(); 
                 }
             });
         }
@@ -580,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function startGame() {
         game.score = 0;
         game.lines = 0;
-        game.level = 1;
+        game.level = 1; // Start at level 1
         game.isGameOver = false;
         game.isPaused = false;
         game.currentPiece = null; 
@@ -597,12 +606,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.lines) elements.lines.textContent = game.lines;
         if (elements.level) elements.level.textContent = game.level;
         
-        // Ensure leaderboard specific elements are in their default non-game-over state
-        // This is mostly handled by the `viewLeaderboardButton` handler if user navigates there,
-        // but good to ensure clean state if possible.
         if(elements.leaderboardMessage) elements.leaderboardMessage.classList.add('hidden');
         if(elements.leaderboardTryAgainButton) elements.leaderboardTryAgainButton.style.display = 'none';
-        if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none'; // Hide reset button when game starts/restarts
+        if(elements.leaderboardResetScoresButton) elements.leaderboardResetScoresButton.style.display = 'none';
         if(elements.leaderboardTitle) elements.leaderboardTitle.textContent = "High Scores";
 
         fillAndShuffleBag(); 
@@ -614,14 +620,15 @@ document.addEventListener('DOMContentLoaded', () => {
             endGame(); return;
         }
         if (!game.currentPiece.matrix || !Array.isArray(game.currentPiece.matrix)) {
-             console.error("startGame ERROR: game.currentPiece is missing a valid 'matrix' property! Aborting start.");
-             endGame(); return;
+            console.error("startGame ERROR: game.currentPiece is missing a valid 'matrix' property! Aborting start.");
+            endGame(); return;
         }
         handleResize(); 
         resetPiecePosition(); 
         if (isCollision(game.currentPiece.matrix, game.currentX, game.currentY)) {
             endGame(); return;
         }
+        // Set initial interval using the new getSpeed logic
         game.interval = setInterval(moveDown, getSpeed());
         setupGameplayEventListeners();
         draw();
