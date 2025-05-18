@@ -275,7 +275,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dropCount > 0) { game.score += dropCount * 2; if (elements.score) elements.score.textContent = game.score; }
         moveDown();
     }
-
+    function calculateGhostPosition() {
+        if (!game.currentPiece || !game.currentPiece.matrix || game.isPaused || game.isGameOver) return null;
+        
+        // Create a copy of the current piece's position
+        const ghostX = game.currentX;
+        let ghostY = game.currentY;
+        
+        // Move the ghost piece down until it collides
+        while (!isCollision(game.currentPiece.matrix, ghostX, ghostY + 1)) {
+            ghostY++;
+        }
+        
+        return { x: ghostX, y: ghostY };
+    }
     function placePiece() {
         if (!game.currentPiece || !game.currentPiece.matrix || !game.board || !config || !config.board) return;
         const matrix = game.currentPiece.matrix;
@@ -380,7 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!config || !config.board) { console.error("Draw Fail: Config"); return; }
         if (!tetrominoes || !tetrominoes.images || !tetrominoes.colors) { console.error("Draw Fail: Tetrominoes"); return; }
         if (!elements || !elements.board || !elements.nextPiece) { console.error("Draw Fail: Elements"); return; }
-        elements.board.innerHTML = ''; createGrid();
+        
+        elements.board.innerHTML = ''; 
+        createGrid();
+        
+        // Draw the board (existing pieces)
         for (let y = 0; y < config.board.height; y++) {
             if (!game.board || !game.board[y]) continue;
             for (let x = 0; x < config.board.width; x++) {
@@ -392,8 +409,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        
+        // Draw the ghost piece
         if (game.currentPiece && game.currentPiece.matrix) {
-            const matrix = game.currentPiece.matrix; const image = game.currentPiece.image; const color = game.currentPiece.color;
+            const ghostPos = calculateGhostPosition();
+            if (ghostPos) {
+                const matrix = game.currentPiece.matrix;
+                const color = game.currentPiece.color;
+                
+                for (let y = 0; y < matrix.length; y++) {
+                    if (!matrix[y]) continue;
+                    for (let x = 0; x < matrix[y].length; x++) {
+                        if (matrix[y][x]) {
+                            // Create ghost block with transparency
+                            const ghostBlock = createBlock(elements.board, (ghostPos.x + x) * game.blockSize, (ghostPos.y + y) * game.blockSize, null, color);
+                            if (ghostBlock) {
+                                ghostBlock.style.opacity = '0.3'; // Make it semi-transparent
+                                ghostBlock.style.border = '1px dashed rgba(255, 255, 255, 0.5)'; // Add dashed border
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Draw the current piece (on top of ghost piece)
+        if (game.currentPiece && game.currentPiece.matrix) {
+            const matrix = game.currentPiece.matrix;
+            const image = game.currentPiece.image;
+            const color = game.currentPiece.color;
+            
             if (typeof image === 'undefined' || typeof color === 'undefined') { /* console.warn for missing image/color */ }
             for (let y = 0; y < matrix.length; y++) {
                 if (!matrix[y]) continue;
@@ -406,9 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        if (game.nextPiece) { elements.nextPiece.innerHTML = ''; drawNextPiece(); }
-        else { if(elements.nextPiece) elements.nextPiece.innerHTML = ''; }
+        
+        if (game.nextPiece) { 
+            elements.nextPiece.innerHTML = ''; 
+            drawNextPiece(); 
+        }
+        else { 
+            if(elements.nextPiece) elements.nextPiece.innerHTML = ''; 
+        }
     }
+    
 
     function createBlock(parent, left, top, imagePath, fallbackColor) {
         if (!parent) return null;
